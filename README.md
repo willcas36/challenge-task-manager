@@ -1,98 +1,98 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Challenge: Task Manager API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for managing tasks and users, built with NestJS and in-memory storage.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## How to run
 
 ```bash
-$ npm install
+# 1. Install dependencies
+npm install
+
+# 2. Start in development mode
+npm run start:dev
 ```
 
-## Compile and run the project
+The API is available at `http://localhost:3000`.
+Swagger documentation at `http://localhost:3000/docs`.
 
-```bash
-# development
-$ npm run start
+The app starts with pre-loaded data (3 users and 6 tasks) to allow immediate testing of the endpoints.
 
-# watch mode
-$ npm run start:dev
+---
 
-# production mode
-$ npm run start:prod
+## Design
+
+```
+src/
+├── common/
+│   ├── types/timestamps.ts        # Base class with createdAt, updatedAt, deletedAt
+│   └── seed/seed-data.ts          # Initial data separated from business logic
+├── modules/
+│   ├── users/                     # Users module (Full CRUD)
+│   │   ├── dto/                   # Input validation (class-validator)
+│   │   ├── entities/              # User entity definition
+│   │   ├── users.repository.ts    # Data access (in-memory)
+│   │   ├── users.service.ts       # Business logic
+│   │   └── users.controller.ts    # REST endpoints
+│   └── task/                      # Task module (CRUD + filters + status change)
+│       ├── dto/
+│       ├── entities/
+│       ├── types/                 # Enums: TaskStatus, TaskPriority, TaskSortableField
+│       ├── task.repository.ts
+│       ├── task.service.ts
+│       └── task.controller.ts
+└── main.ts                        # Bootstrap + Swagger + ValidationPipe
 ```
 
-## Run tests
+**Repository Pattern:** Each module has its own repository that encapsulates data access. The service never accesses the array directly, always through the repository. This means that if a real database is connected in the future, only the repository needs to change without touching the service or controller.
 
-```bash
-# unit tests
-$ npm run test
+**Module Relationships:** `TaskModule` imports `UsersModule` to share the same `UserRepository` instance. This ensures that when a new user is created, it is immediately available to be assigned to tasks.
 
-# e2e tests
-$ npm run test:e2e
+**Seed data:** Initial data lives in a separate file (`seed-data.ts`) and is loaded via `OnModuleInit` in each repository. This keeps repositories clean and test data centralized.
 
-# test coverage
-$ npm run test:cov
-```
+**Soft delete:** Records are not physically deleted; they are marked with `isDeleted: true` and `deletedAt`. All queries automatically filter out deleted records.
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Tradeoffs and assumptions
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- **In-memory storage:** Data does not persist between restarts. This was an intentional decision to keep the project free of external dependencies (databases, Docker, etc.) and make it easy to run with a single `npm run start:dev`.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+- **Auto-incrementing string IDs:** `(array.length + 1).toString()` is used to generate IDs. It is simple but not production-safe (if a record is deleted and another created, they could collide). In a real project, UUIDs would be used.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+- **No authentication:** Auth was not implemented as it was not part of the scope. The module structure allows adding it easily as a global guard.
 
-## Resources
+- **Sorting Enums:** `TaskSortableField` was created as an enum that only includes fields that can actually be sorted, instead of exposing all entity fields (like `assignee` or `comments` which don't make sense for sorting).
 
-Check out a few resources that may come in handy when working with NestJS:
+- **`status` as query param in findAll:** Renamed from `estado` to `status` to maintain English consistency throughout the API.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## What I would improve with more time
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- **Real Persistence:** Connect PostgreSQL with Prisma or TypeORM, replacing in-memory repositories.
+- **Pagination:** Add `take` and `page` to list endpoints to handle large volumes of data.
+- **Response DTOs:** Create separate response DTOs to control exactly which fields are returned to the client (instead of returning the entity directly).
+- **Global Error Handling:** Implement an exception filter that standardizes the error format across the entire API.
+- **Business Validations:** For example, prevent deleting a user who has active tasks assigned.
 
-## Stay in touch
+---
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## How I used AI tools
 
-## License
+I used **Claude Code** (CLI) as an assistant throughout development. Some concrete examples:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+1. **Initial Scaffolding:** I asked it to analyze the project and complete the users module which was empty (it only had files generated by `nest g resource`). It generated the repository, service, and controller with the same structure as the task module, saving me time on repetitive tasks.
+
+2. **Debugging:** When task `findAll` filtered by `assignedUserId` and only returned 1 result instead of 2, Claude identified that `TaskModule` was instantiating its own `UserRepository` instead of importing `UsersModule`, creating two separate instances of the same repository.
+
+3. **Another subtle bug:** The `update` method in the task repository was doing `assignee: undefined` when spreading, overwriting the original assignee when `setTaskStatus` was called. Claude detected that `assignee` as an undefined parameter propagated to the object and corrected it.
+
+4. **Documentation:** I asked it to help implement Swagger documentation applying simple examples for input and output DTOs for each endpoint.
+
+5. **Seed data:** I asked it to generate a seed with several "real" examples relating 2 tasks per user.
+
+6. **Readme:** I asked it to help me generate the README with the current structure to make it more understandable and readable.
+
+Overall, Claude was useful for accelerating repetitive tasks (Swagger decorators, CRUD boilerplate) and for detecting bugs that require understanding the interaction between modules. I always reviewed the generated code before accepting it.
